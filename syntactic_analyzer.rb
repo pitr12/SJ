@@ -1,5 +1,6 @@
 require_relative 'lexical_analyzer'
 require_relative 'token'
+require 'json'
 
 class SyntacticAnalyzer
 
@@ -142,6 +143,21 @@ class SyntacticAnalyzer
       '132': [Token.new(:regular, '*')],
   }
 
+  def self.generate_char_json(rule_num, inc)
+      result = {}
+      rule_num -= 1 if inc
+      ('A'..'Z').each { |x| result[x.to_sym] = inc ? (rule_num += 1).to_s : rule_num.to_s }
+      ('a'..'z').each { |x| result[x.to_sym] = inc ? (rule_num += 1).to_s : rule_num.to_s }
+      result
+  end
+
+  def self.generate_digit_json(rule_num, inc)
+      result = {}
+      rule_num -= 1 if inc
+      ('0'..'9').each {|x| result[x.to_sym] = inc ? (rule_num += 1).to_s : rule_num.to_s }
+      result
+  end
+
   STT = {
       :dtddocument => {
           '<!ATTRLIST': '1',
@@ -151,17 +167,185 @@ class SyntacticAnalyzer
           '<!ATTRLIST': '2',
           '<!ELEMENT': '2',
           '$': '3'
-      }
+      },
+      :declaration => {
+          '<!ATTRLIST': '4',
+          '<!ELEMENT': '5'
+      },
+      :elemdecl => {
+          '<!ELEMENT': '6'
+      },
+      :elemdecl2 => {
+          'EMPTY': '7',
+          'ANY': '8',
+          '(#PCDATA)': '9',
+          '(': '10'
+      },
+      :elemchild => {
+          '(': '11'
+      },
+      :choiceseq => {
+          '(': '12'
+      },
+      :choiceseq2 => {
+          ')': '15',
+          '|': '13',
+          ',': '14'
+      },
+      :choiceseq3 => {
+          ')': '16',
+          '|': '16',
+          ',': '16'
+      },
+      :choice => {
+          '|': '17'
+      },
+      :cp => generate_char_json(18, false).merge({
+          '_': '18',
+          ':': '18',
+          '(': '19'
+      }),
+      :cp2 => {
+          '?': '21',
+          '*': '22',
+          '+': '23',
+          ')': '20',
+          '|': '20',
+          ',': '20'
+      },
+      :x => {
+          '(': '24'
+      },
+      :attrdecl => {
+          '<!ATTRLIST': '25'
+      },
+      :attrdecl2 => generate_char_json(26, false).merge({
+          '_': '26',
+          ':': '26'
+      }),
+      :attrdecl3 => {
+          '>': '27',
+          'SPACE': '28'
+      },
+      :attrdecl4 => generate_char_json(30, false).merge({
+          '_': '30',
+          ':': '30',
+          '>': '29'
+      }),
+      :attrtype => {
+          '(': '34',
+          'CDATA': '31',
+          'NMTOKEN': '32',
+          'IDREF': '33'
+      },
+      :attrtype2 => {
+          ')': '35',
+          '|': '36'
+      },
+      :defaultdecl => {
+          '#REQUIRED': '37',
+          '#IMPLIED': '38',
+          '"': '39',
+          '#FIXED': '40'
+      },
+      :defaultdecl2 => generate_char_json(41, false).merge({
+          '?': '41',
+          '*': '41',
+          '+': '41',
+          '!': '41',
+          ';': '41',
+          '@': '41',
+          '&': '41'
+      }).merge(generate_digit_json(41, false)),
+      :defaultdecl3 => {
+          '"': '42',
+          'SPACE': '43'
+      },
+      :name => generate_char_json(44, false).merge({
+          '_': '45',
+          ':': '46'
+      }),
+      :name2 => generate_char_json(47, false).merge({
+            '_': '47',
+            ':': '47',
+            '.': '47',
+            '-': '47'
+        }).merge(generate_digit_json(47, false)),
+      :name3 => generate_char_json(49, false).merge(generate_digit_json(49, false)).merge({
+          '>': '48',
+          '?': '48',
+          '*': '48',
+          '+': '48',
+          ')': '48',
+          '|': '48',
+          ',': '48',
+          'EMPTY': '48',
+          'ANY': '48',
+          '(#PCDATA)': '48',
+          '(': '48',
+          'CDATA': '48',
+          'NMTOKEN': '48',
+          'IDREF': '48',
+          'SPACE': '48',
+          '_': '49',
+          ':': '49',
+          '-': '49',
+          '.': '49'
+      }),
+      :namechar => generate_char_json(50, false).merge(generate_digit_json(51, false)).merge({
+             '_': '54',
+             ':': '55',
+             '.': '52',
+             '-': '53',
+         }),
+      :letter => generate_char_json(56, true),
+      :number => generate_digit_json(108, false),
+      :number2 => generate_digit_json(110, false),
+      :digit => generate_digit_json(111, true),
+      :word => generate_char_json(121, false).merge(generate_digit_json(121, false)).merge({
+           '?': '121',
+           '*': '121',
+           '+': '121',
+           '!': '121',
+           ';': '121',
+           '@': '121',
+           '&': '121'
+       }),
+      :word2 => generate_char_json(123, false).merge(generate_digit_json(123, false)).merge({
+            '?': '123',
+            '*': '123',
+            '+': '123',
+            '!': '123',
+            ';': '123',
+            '@': '123',
+            '&': '123',
+            ')': '122',
+            '|': '122',
+            '"': '122',
+            'SPACE': '122'
+        }),
+      :char => generate_char_json(124, false).merge(generate_digit_json(125, false)).merge({
+            '?': '127',
+            '*': '132',
+            '+': '131',
+            '!': '126',
+            ';': '128',
+            '@': '129',
+            '&': '130'
+        })
   }
 
   def self.analyze
     tokens = LexicalAnalyzer.get_tokens
+    tokens << Token.new(:regular, '$') #end of input
+
 
     tokens.each do |token|
       puts token.inspect
     end
 
   end
+  # puts JSON.pretty_generate(STT)
 end
 
 LexicalAnalyzer.load_input
