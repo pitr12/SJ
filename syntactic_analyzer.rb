@@ -1,5 +1,6 @@
 require_relative 'lexical_analyzer'
 require_relative 'token'
+require_relative 'error'
 require 'json'
 
 class SyntacticAnalyzer
@@ -160,16 +161,16 @@ class SyntacticAnalyzer
 
   STT = {
       :dtddocument => {
-          '<!ATTRLIST': '1',
+          '<!ATTLIST': '1',
           '<!ELEMENT': '1'
       },
       :dtddocument2 => {
-          '<!ATTRLIST': '2',
+          '<!ATTLIST': '2',
           '<!ELEMENT': '2',
           '$': '3'
       },
       :declaration => {
-          '<!ATTRLIST': '4',
+          '<!ATTLIST': '4',
           '<!ELEMENT': '5'
       },
       :elemdecl => {
@@ -217,7 +218,7 @@ class SyntacticAnalyzer
           '(': '24'
       },
       :attrdecl => {
-          '<!ATTRLIST': '25'
+          '<!ATTLIST': '25'
       },
       :attrdecl2 => generate_char_json(26, false).merge({
           '_': '26',
@@ -336,16 +337,75 @@ class SyntacticAnalyzer
   }
 
   def self.analyze
-    tokens = LexicalAnalyzer.get_tokens
-    tokens << Token.new(:regular, '$') #end of input
+    input = LexicalAnalyzer.get_tokens
+    original_input = LexicalAnalyzer.get_input_string
 
+    puts input.inspect
 
-    tokens.each do |token|
-      puts token.inspect
+    stack = []
+    stack << :dtddocument
+
+    pop_input = true
+    pop_stack = true
+    accepted = true
+
+    errors = []
+
+    while stack.size > 0
+      actual_stack_item = stack.pop if pop_stack
+      actual_input_token = input.shift if pop_input
+
+      puts "Stack: #{stack.inspect} \n\n"
+      puts "Remaining tokens: #{input.inspect}\n\n"
+
+      puts "Actual stack item: #{actual_stack_item.inspect}\n\n"
+      puts "Actual token: #{actual_input_token.inspect}\n\n"
+
+      if NON_TERMINALS.include? actual_stack_item
+        rule = STT[actual_stack_item][actual_input_token.value.to_sym]
+        puts "Applied rule: #{rule}"
+        if rule
+          stack += RULES[rule.to_sym]
+          pop_input = false
+          pop_stack = true
+        else
+          puts "Unaccepted token!"
+          errors << Error.new(actual_input_token.position, STT[actual_stack_item].keys.map{|k| k.to_s }, actual_input_token.value)
+          pop_input = true
+          accepted = false
+          pop_stack = false
+        end
+      else
+        if Token.are_equal?(actual_stack_item, actual_input_token)
+          pop_input = true
+          pop_stack = true
+          puts "Accepted token"
+        else
+          puts "Unaccepted token!"
+          errors << Error.new(actual_input_token.position, actual_stack_item.value, actual_input_token.value)
+          pop_input = true
+          accepted = false
+          pop_stack = false
+        end
+      end
+
+      puts "-------------------------------"
+    end
+
+    puts "\n\n"
+
+    if input.size == 0 && accepted
+      puts " -------------- INPUT ACCEPTED! ----------------"
+      puts original_input
+    else
+      puts "--------------- INPUT REJECTED! --- #{errors.size} errors found!!! ---------------"
+      puts original_input
+      errors.each do |error|
+        Error.print_error error
+      end
     end
 
   end
-  # puts JSON.pretty_generate(STT)
 end
 
 LexicalAnalyzer.load_input
